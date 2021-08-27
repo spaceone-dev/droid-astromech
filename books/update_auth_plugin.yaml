@@ -1,0 +1,49 @@
+# quickstart.yaml
+var:
+  domain_name: my_domain_name
+tasks:
+  - name: Get domain
+    id: domain
+    uses: "@modules/resource"
+    spec:
+      resource_type: identity.Domain
+      data:
+        name: ${{ var.domain_name }}
+      matches:
+        - name
+      mode: NO_UPDATE
+
+  - name: check plugin_info of Domain
+    if: ${{ tasks.domain.output.plugin_info }}
+    uses: "@modules/shell"
+    spec:
+      run: |
+        echo "Plugin ID     : ${{ tasks.domain.output.plugin_info.plugin_id}}"
+        echo "Plugin version: ${{ tasks.domain.output.plugin_info.version}}"
+
+  - name: Get plugin versions
+    id: plugin_versions
+    uses: "@modules/resource"
+    spec:
+      resource_type: repository.Plugin
+      data:
+        domain_id: ${{ tasks.domain.output.domain_id }}
+        plugin_id: ${{ tasks.domain.output.plugin_info.plugin_id }}
+      mode: EXEC
+      verb:
+        exec: get_versions
+
+  - name: upgrade plugin versions
+    if: ${{ tasks.domain.output.plugin_info.version | quote }} != ${{ tasks.plugin_versions.output.results[0] | quote }}
+    uses: "@modules/resource"
+    spec:
+      resource_type: identity.Domain
+      data:
+        domain_id: ${{ tasks.domain.output.domain_id }}
+        version: ${{ tasks.plugin_versions.output.results[0] }}
+      mode: EXEC
+      verb:
+        exec: update_plugin
+
+
+
